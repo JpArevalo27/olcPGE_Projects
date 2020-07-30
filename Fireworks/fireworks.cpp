@@ -5,6 +5,12 @@
 
 olc::vf2d gravity;
 
+int range_randomInt(int high){
+	std::default_random_engine generator;
+	std::uniform_int_distribution<int> distribution(0, high);
+	return distribution(generator);
+}
+
 int range_randomInt(int low, int high){
 	std::default_random_engine generator;
 	std::uniform_int_distribution<int> distribution(low, high);
@@ -16,7 +22,7 @@ struct Particle{
 	olc::vf2d pos, vel, acc;
 	bool firework;
 	int lifespan = 255;
-		int hu;
+	int hu;
 
 	Particle(){
 		pos.x = 0.0f;
@@ -28,9 +34,28 @@ struct Particle{
 		firework = false;
 	}
 
-	Particle(float x, float y, bool fire, int h){
+	Particle(float x_, float y_, bool fire, int h){
 		firework = fire;
 		hu = h;
+		pos.x = x_;
+		pos.y = y_;
+
+		if(firework){
+			vel.x = (float)range_randomInt(-10, 10);
+			vel.y = (float)range_randomInt(-25, -8);
+		} else{
+			vel.x = (float)range_randomInt(0, 360);
+			vel.y = (float)range_randomInt(0, 360);
+		}
+
+		acc.x = 0.0f;
+		acc.y = 0.0f;
+	}
+
+	Particle(olc::vf2d position , bool fire, int h){
+		firework = fire;
+		hu = h;
+		pos = position;
 
 		if(firework){
 			vel.x = (float)range_randomInt(-10, 10);
@@ -64,42 +89,130 @@ struct Particle{
 
 struct Firework{
 
-	Particle firework;
+	Particle *firework;
 	bool exploded;
-	std::vector<Particle> parts;
+	std::vector<Particle *> parts;
 	int hu;
+	int width, height;
+	olc::PixelGameEngine * gfx;
+	int deadCount = 0;
 
 	Firework(){
+		width = 256;
+		height = 240;
+		gfx = nullptr;
 		hu = std::rand() % 255;
-		firework = new Particle()
+		firework = new Particle((float)range_randomInt(width), height, true, hu);
+		exploded = false;
+		parts.reserve(100);
 	}
+
+	Firework(int screenWidth, int screenHeight, olc::PixelGameEngine* engine){
+		width = screenHeight;
+		height = screenWidth;
+		gfx = engine;
+		hu = std::rand() % 255;
+		firework = new Particle((float)range_randomInt(width), height, true, hu);
+		exploded = false;
+		parts.reserve(100);
+	}
+
+	~Firework(){
+		for(unsigned int i = 0; i < parts.size(); i++){
+			delete parts[i];
+		}
+		delete firework;
+	}
+
+	void operator = (const Firework& rhs){
+		width = rhs.width;
+		height = rhs.height;
+		gfx = rhs.gfx;
+		hu = rhs.hu;
+		firework = rhs.firework;
+		exploded = rhs.exploded;
+		parts = rhs.parts;
+	}
+
+
+
+	void Explode(){
+		for(unsigned int i = 0; i < parts.size(); i++)
+			parts.push_back(new Particle(firework->pos, false, hu));
+	}
+
+	void Update(){
+		if(!exploded){
+			firework->ApplyForce(gravity);
+			firework->Update();
+			
+			if(firework->vel.y >= 0){
+				exploded = true;
+				Explode();
+			}
+		}
+
+		for(unsigned int i = 0; i < parts.size(); i++){
+			if(parts[i] != nullptr){
+				parts[i]->ApplyForce(gravity);
+				parts[i]->Update();
+				if(parts[i]->isDone())
+					deadCount++;
+			}
+		}
+	}
+
+	void Show(){
+		if(!exploded){
+			gfx->FillCircle(firework->pos, 2);
+		}
+
+		for(unsigned int i = 0; i < parts.size(); i++){
+			if(parts[i] != nullptr && !parts[i]->isDone()){
+				gfx->FillCircle(parts[i]->pos, 1);
+			}
+		}
+	}
+
+	bool isDone(){
+		return(exploded && (deadCount == parts.size()));
+	}
+
+
 };
 
 // Override base class with your custom functionality
-class Example : public olc::PixelGameEngine{
+class Fireworks : public olc::PixelGameEngine{
 public:
-	Example(){
+	Fireworks(){
 		// Name you application
 		sAppName = "Fireworks";
 	}
 
+	Firework fr;
+
 public:
 	bool OnUserCreate() override{
 		// Called once at the start, so create things here
+		fr = Firework(ScreenWidth(), ScreenHeight(), this);
+		gravity.x = 0.0f;
+		gravity.y = 0.2f;
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override{
 		// called once per frame, draws random coloured pixels
-		for(int x = 0; x < ScreenWidth(); x++)
-			for(int y = 0; y < ScreenHeight(); y++)
-				Draw(x, y, olc::Pixel(rand() % 256, rand() % 256, rand() % 256));
+		Clear(olc::Pixel(0, 0, 0, 25));
+		fr.Show();
+		fr.Update();
+
+
 		return true;
 	}
 };
 
 int main(){
-	Example demo;
+	Fireworks demo;
 	if(demo.Construct(400, 300, 1, 1))
 		demo.Start();
 	return 0;
