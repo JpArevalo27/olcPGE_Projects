@@ -1,7 +1,7 @@
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
 #include <random>
-
+#include <memory>
 
 olc::vf2d gravity;
 
@@ -182,14 +182,27 @@ int range_randomInt(int low, int high){
 //};
 
 struct Particle{
-	olc::vi2d pos, vel, acc;
+	olc::vf2d pos, vel, acc;
+	olc::Pixel col;
+	int size;
+	bool exploded;
+	std::vector<std::unique_ptr<Particle>> parts;
+
+	Particle(olc::vf2d p, olc::vf2d v, olc::Pixel c, int s, bool e){
+		pos = p;
+		vel = v;
+		acc = {0, 0};
+		col = c;
+		size = s;
+		exploded = e;
+	}
 };
 
 // Override base class with your custom functionality
 class Fireworks : public olc::PixelGameEngine{
 public:
-	Particle firework;
-	olc::vi2d gravity = {0, 20};
+	std::vector<Particle> fireworks;
+	olc::vf2d gravity = {0, 180};
 	float targetFrameTime = 1.00f / 60.0f;
 	float accumulatedTime = 0.00f;
 
@@ -199,32 +212,66 @@ public:
 		sAppName = "Fireworks";
 	}
 
+	olc::vf2d randomVf2d(){
+		olc::vf2d out;
+		out.x = (float)range_randomInt(360);
+		out.y = (float)range_randomInt(360);
+		return out;
+	}
+
 public:
 	bool OnUserCreate() override{
-		// Called once at the start, so create things here
-		firework.pos.x = ScreenWidth() / 2;
+		
+		// Create a firework at a random position in the bottom of the screen
+		olc::vf2d p = {(float)range_randomInt(ScreenWidth()), (float)ScreenHeight()};
+		fireworks.push_back(Particle(p, {0, -300}, olc::RED, 5, false));
+
+
+		/*firework.pos.x = ScreenWidth() / 2;
 		firework.pos.y = ScreenHeight();
-		firework.vel.y = -500;
+		firework.vel.y = -300;*/
 		return true;
 	}
 
+	void Explode(Particle& part){
+		for(int i = 0; i < 50; i++)
+			part.parts.push_back(std::make_unique<Particle>(part.pos, randomVf2d(), part.col, 2, false));
+	}
+
 	void DrawParticle(Particle& part){
-		FillCircle(part.pos, 10, olc::RED);
+		if(!part.exploded)
+			FillCircle(part.pos, part.size, part.col);
+		else{
+			for(auto& p : part.parts){
+				FillCircle(p->pos, p->size, p->col);
+			}
+		}
 	}
 
 	void UpdateParticle(Particle& part, float fElapsedTime){
-		part.acc += gravity;
-		part.vel += part.acc * fElapsedTime;
-		part.pos += part.vel * fElapsedTime;
+		if(part.vel.y >= 0){
+			Explode(part);
+		}
 
-		part.acc *= 0;
+		if(!part.exploded){
+			part.vel += gravity * fElapsedTime;
+			part.pos += part.vel * fElapsedTime;
+		} else{
+			for(auto& p : part.parts){
+				p->vel += gravity * fElapsedTime;
+				p->pos += p->vel * fElapsedTime;
+			}
+		}
+
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override{
 		//Clear(olc::Pixel(0, 0, 0, 25));
 		Clear(olc::BLACK);
-		UpdateParticle(firework, fElapsedTime);
-		DrawParticle(firework);
+		for(Particle& p : fireworks){
+			UpdateParticle(p, fElapsedTime);
+			DrawParticle(p);
+		}
 
 
 
