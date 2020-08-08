@@ -38,6 +38,16 @@ public:
 		sAppName = "Minesweeper";
 	}
 
+	void DrawBoard(){
+		int tileWidth = ScreenWidth() / cols;
+		int tileHeight = ScreenHeight() / rows;
+		for(int x = 0; x < cols; x++){
+			for(int y = 0; y < rows; y++){
+				FillRect(board[x * rows + y].x * tileWidth, board[x * rows + y].y * tileHeight, tileWidth, tileHeight, olc::GREY);
+				DrawRect(board[x * rows + y].x * tileWidth, board[x * rows + y].y * tileHeight, tileWidth, tileHeight, olc::VERY_DARK_GREY);
+			}
+		}
+	}
 
 	bool OnUserCreate() override{
 		
@@ -50,15 +60,8 @@ public:
 	}
 
 	bool OnUserUpdate(float elapsedTime) override{
-		int tileWidth = ScreenWidth() / cols;
-		int tileHeight = ScreenHeight() / rows;
-		for(int x = 0; x < cols; x++){
-			for(int y = 0; y < rows; y++){
-				FillRect(board[x * rows + y].x * tileWidth, board[x * rows + y].y * tileHeight, tileWidth, tileHeight, olc::GREY);
-				DrawRect(board[x * rows + y].x * tileWidth, board[x * rows + y].y * tileHeight, tileWidth, tileHeight, olc::VERY_DARK_GREY);
-			}
-		}
-
+		
+		DrawBoard();
 		return true;
 	}
 
